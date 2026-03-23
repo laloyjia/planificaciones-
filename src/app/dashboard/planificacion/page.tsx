@@ -103,17 +103,22 @@ export default function PlanificadorElectrónicaV3() {
         ? "Enfoque: CLASE DE TALLER ('METER MANOS'). El estudiante usa herramientas, equipos, ensambla, o mide físicamente."
         : "Enfoque: CLASE HÍBRIDA. Inicia teórica magistral y transita al trabajo práctico de taller.";
 
-    // REGLA NEE BLINDADA: Le exigimos que nombre explícitamente el diagnóstico
     const contextoNEE = plan.neeSeleccionadas.length > 0 
       ? `ESTUDIANTES CON NEE EN EL AULA: ${plan.neeSeleccionadas.join(", ")}. REGLA DE ORO: Por CADA UNO de estos diagnósticos, escribe su nombre explícitamente y da 2 estrategias DUA exactas para aplicar en la actividad.` 
       : "Diagnósticos NEE: Ninguno específico. Aplica principios DUA generales de accesibilidad.";
 
+    // NUEVO: Capturamos la especialidad dinámica que viene de Firebase
+    const especialidadActual = moduloActual?.origenEspecialidad || "Técnico Profesional";
+
+    // PROMPT MODIFICADO: Ahora es dinámico e incluye el Aprendizaje Esperado
     const promptMaster = `
-      Actúa como experto pedagogo EMTP de la especialidad de ELECTRÓNICA.
+      Actúa como experto pedagogo EMTP de la especialidad de ${especialidadActual.toUpperCase()}.
       
       CONTEXTO TÉCNICO:
+      Especialidad: ${especialidadActual}
       Módulo: ${plan.modulo}
-      Criterios de Evaluación Seleccionados: ${plan.criteriosSeleccionados.map((c: any) => c.textoCE).join(", ")}
+      Aprendizaje Esperado: ${plan.aprendizajeEsperado.textoAE}
+      Criterios de Evaluación Seleccionados: ${plan.criteriosSeleccionados.map((c: any) => c.textoCE).join(" | ")}
       CONTENIDOS A ENSEÑAR: ${plan.contenidoEspecífico}
       
       MODALIDAD Y NEE:
@@ -121,41 +126,41 @@ export default function PlanificadorElectrónicaV3() {
       - ${contextoNEE}
 
       ESTRUCTURA Y REGLAS ESTRICTAS (¡CUMPLE TODAS!):
-      1. FOCO ABSOLUTO EN LOS CONTENIDOS: Toda la clase (el inicio, la actividad de desarrollo, la evaluación y el cierre) debe estar diseñada y girar 100% en torno a enseñar los "CONTENIDOS A ENSEÑAR" que indicó el docente.
+      1. FOCO ABSOLUTO EN LOS CONTENIDOS: Toda la clase (el inicio, la actividad de desarrollo, la evaluación y el cierre) debe estar diseñada y girar 100% en torno a enseñar los "CONTENIDOS A ENSEÑAR" y lograr el "Aprendizaje Esperado" indicado.
       2. PILARES Y MBE: Define Objetivos medibles, Contenidos y Estándares EMTP. Aplica el Marco de la Buena Enseñanza.
       3. INICIO, DESARROLLO Y CIERRE:
          - ¡PROHIBIDO DUPLICAR CONTENIDO! Docente y Estudiante tienen roles DISTINTOS.
-         - El Docente: Enseña, modela, monitorea, guía, retroalimenta.
-         - El Estudiante: Escucha, analiza, arma, mide, anota, responde.
+         - El Docente: Enseña, explica, modela, monitorea, guía, retroalimenta.
+         - El Estudiante: Escucha,aprende, analiza, arma, mide, anota, responde.
          - Escribe EXACTAMENTE 6 A 9 viñetas distintas para cada rol.
       4. ESTRATEGIAS NEE/DUA: Nombra el diagnóstico seleccionado (Ej: "Para TDAH: ...") y da los tips. Si hay 2 diagnósticos, sepáralos claramente.
-      5. RÚBRICA: DEBES CREAR EXACTAMENTE 4 CRITERIOS A EVALUAR (Filas). Ni 2, ni 3. Tienen que ser 4 aspectos técnicos distintos con sus 3 niveles de logro (Logrado, Por Lograr, No Logrado).
+      5. RÚBRICA: DEBES CREAR EXACTAMENTE 4 CRITERIOS A EVALUAR (Filas) basados en los Criterios de Evaluación Seleccionados. Ni 2, ni 3. Tienen que ser 4 aspectos técnicos distintos con sus 4 niveles de logro (Logrado, Por Lograr, No Logrado).
 
       Devuelve ÚNICAMENTE un objeto JSON puro. NO incluyas formato markdown. Copia esta ESTRUCTURA EXACTA:
       {
-        "nombreClase": "Título técnico",
+        "nombreClase": "Título técnico de la clase",
         "pilares": { "objetivos": "Objetivo medible...", "contenidos": "Contenido...", "estandares": "Estándar..." },
         "charlaSeguridad": "Consejo técnico de seguridad...",
         "inicio": { 
-          "docente": "• ...\\n• ...\\n• ...\\n• ..."• ...\\n• ...\\n• ...\\n• ...", 
-          "estudiante": "• ...\\n• ...\\n• ...\\n• ..."• ...\\n• ...\\n• ...\\n• ..." 
+          "docente": "• ...\\n• ...\\n• ...\\n• ...\\n• ...\\n• ...\\n• ...", 
+          "estudiante": "• ...\\n• ...\\n• ...\\n• ...\\n• ...\\n• ...\\n• ..." 
         },
         "desarrollo": { 
           "actividad": "Descripción clara...", 
-          "docente": "• ...\\n• ...\\n• ...\\n• ..." ...\\n• ...\\n• ...\\n• ...", 
-          "estudiante": "• ...\\n• ...\\n• ...\\n• ..." ...\\n• ...\\n• ...\\n• ..." 
+          "docente": "• ...\\n• ...\\n• ...\\n• ...\\n• ...\\n• ...\\n• ...", 
+          "estudiante": "• ...\\n• ...\\n• ...\\n• ...\\n• ...\\n• ...\\n• ..." 
         },
         "cierre": { 
-          "docente": "• ...\\n• ...\\n• ...\\n• ..." ...\\n• ...\\n• ...\\n• ...", 
-          "estudiante": "• ...\\n• ...\\n• ...\\n• ..." ...\\n ...\\n• ...\\n• ..." 
+          "docente": "• ...\\n• ...\\n• ...\\n• ...\\n• ...\\n• ...\\n• ...", 
+          "estudiante": "• ...\\n• ...\\n• ...\\n• ...\\n• ...\\n• ...\\n• ..." 
         },
         "recursos": { "tecnologia": "...", "materialFisico": "...", "fuentes": "...", "epp": "..." },
         "dua": "• [Nombre Diagnóstico 1]: Tip 1...\\n• [Nombre Diagnóstico 1]: Tip 2...\\n• [Nombre Diagnóstico 2]: Tip 1...",
         "rubrica": [ 
-          {"aspecto": "Criterio 1 (Ej: Uso de instrumentos)", "logrado": "...", "porLograr": "...", "noLogrado": "..."},
-          {"aspecto": "Criterio 2 (Ej: Medidas de seguridad)", "logrado": "...", "porLograr": "...", "noLogrado": "..."},
-          {"aspecto": "Criterio 3 (Ej: Procedimiento técnico)", "logrado": "...", "porLograr": "...", "noLogrado": "..."},
-          {"aspecto": "Criterio 4 (Ej: Orden y trabajo en equipo)", "logrado": "...", "porLograr": "...", "noLogrado": "..."}
+          {"aspecto": "Criterio 1", "logrado": "...", "porLograr": "...", "noLogrado": "..."},
+          {"aspecto": "Criterio 2", "logrado": "...", "porLograr": "...", "noLogrado": "..."},
+          {"aspecto": "Criterio 3", "logrado": "...", "porLograr": "...", "noLogrado": "..."},
+          {"aspecto": "Criterio 4", "logrado": "...", "porLograr": "...", "noLogrado": "..."}
         ]
       }
     `;
