@@ -21,18 +21,20 @@ const API_KEYS = [
 ].filter(item => item.key); // Solo cargamos las que realmente estén en el .env
 
 // 2. FUNCIÓN DE LLAMADA CON REINTENTO AUTOMÁTICO (Failsafe)
-async function fetchAIWithRotation(messages: any[], temperature: number) {
+// INCORPORACIÓN: Añadimos 'isJson: boolean = true' para que por defecto siga funcionando igual, pero se pueda desactivar.
+async function fetchAIWithRotation(messages: any[], temperature: number, isJson: boolean = true) {
   let lastError: any = null;
 
   for (const config of API_KEYS) {
     try {
-      console.log(`📡 Intentando con API: ${config.name}`);
+      console.log(`📡 Intentando con API: ${config.name} (Modo JSON: ${isJson})`);
       const client = new OpenAI({ apiKey: config.key, baseURL: config.base });
 
       const completion = await client.chat.completions.create({
         messages,
         model: config.model,
-        response_format: { type: "json_object" },
+        // INCORPORACIÓN: Alterna dinámicamente el formato de respuesta
+        response_format: isJson ? { type: "json_object" } : { type: "text" },
         temperature,
       });
 
@@ -113,32 +115,42 @@ export async function POST(req: Request) {
         ]
       }`;
 
-      // Aumentamos el límite de caracteres extraídos a 40.000 para que no se corten los PDF largos
       const textoParaIA = textoExtraido.substring(0, 40000);
 
       const response = await fetchAIWithRotation([
         { role: "system", content: systemPrompt },
         { role: "user", content: `Analiza TODO este programa y genera el JSON exhaustivo sin omitir ningún Criterio de Evaluación: ${textoParaIA}` }
-      ], 0); // Temperatura 0 para máxima fidelidad
+      ], 0);
 
-      return NextResponse.json(JSON.parse(response || "{}"));
+      // MEJORA: Blindaje para asegurar que el JSON del PDF sea parseable
+      const cleanPdfJson = (response || "{}").replace(/^```json\n?/gi, "").replace(/^```\n?/gi, "").replace(/```$/gi, "").trim();
+      return NextResponse.json(JSON.parse(cleanPdfJson));
     }
 
     // ============================================================================
-    // LÓGICA 2: GENERACIÓN DE PLANIFICACIONES (JSON PROMPT)
+    // LÓGICA 2: GENERACIÓN DE PLANIFICACIONES Y GUÍAS (JSON / MARKDOWN)
     // ============================================================================
     if (contentType.includes("application/json")) {
-      const { prompt } = await req.json();
+      const { prompt, tipo } = await req.json();
       
-      const response = await fetchAIWithRotation([
-        { 
-          role: "system", 
-          content: "Eres un experto pedagogo EMTP. Generas planificaciones en formato JSON siguiendo estrictamente la estructura solicitada." 
-        },
-        { role: "user", content: prompt }
-      ], 0.7);
+      const esGuia = tipo === "guia";
 
-      return NextResponse.json(JSON.parse(response || "{}"));
+      const systemContent = esGuia
+        ? "Eres un experto pedagogo EMTP. Redacta guías técnicas detalladas en formato Markdown puro."
+        : "Eres un experto pedagogo EMTP. Generas planificaciones en formato JSON siguiendo estrictamente la estructura solicitada.";
+
+      const response = await fetchAIWithRotation([
+        { role: "system", content: systemContent },
+        { role: "user", content: prompt }
+      ], 0.7, !esGuia);
+
+      if (esGuia) {
+        return NextResponse.json({ guia: response });
+      } else {
+        // MEJORA PRO: Limpiamos los decoradores de código Markdown que a veces Groq añade por error al JSON
+        const cleanJsonResponse = (response || "{}").replace(/^```json\n?/gi, "").replace(/^```\n?/gi, "").replace(/```$/gi, "").trim();
+        return NextResponse.json(JSON.parse(cleanJsonResponse));
+      }
     }
 
     return NextResponse.json({ error: "Formato de petición no soportado" }, { status: 400 });
